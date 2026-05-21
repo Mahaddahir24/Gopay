@@ -196,7 +196,7 @@ function CustomerMode({
   const ussdUri = `tel:${currentUssdCode.replace("#", "%23")}`;
 
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff", width: "100%", height: "100%", overflowY: "auto", overflowX: "hidden", borderRadius: "inherit" }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff", width: "100%", overflowY: "auto", overflowX: "hidden", borderRadius: "inherit" }}>
       {/* BLUE HEADER */}
       <div style={{ background: "#2F80ED", backgroundImage: "radial-gradient(rgba(255,255,255,0.15) 1.5px, transparent 1.5px)", backgroundSize: "20px 20px", padding: "32px 20px 24px", position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
         <button onClick={() => setShowInfo(true)} style={{ position: "absolute", top: 16, right: 16, width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.2)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", fontSize: 16, fontWeight: "bold", fontFamily: "monospace" }}>
