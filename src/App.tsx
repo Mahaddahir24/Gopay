@@ -1,107 +1,112 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from 'react';
+import QRCode from 'qrcodejs1';
 
-/* ─────────────────────────────────────────────
-   PRODUCTION CONFIGURATION RAILS
-───────────────────────────────────────────── */
-const PRODUCTION_MERCHANT = {
-  uid: "M0910291",
-  apiUserId: "1000416", // EVC Plus Short-Code Switch Identifier: *712*1000416*amount#
-  apiKey: "API-675418114",
-  name: "City Care Clinic",
-};
+export default function App() {
+  const baseUrl = "https://gopay01.vercel.app";
+  const [currentMode, setCurrentMode] = useState<'keypad' | 'pos'>('pos');
+  const [currentAmount, setCurrentAmount] = useState('0');
+  const [selectedProvider, setSelectedProvider] = useState('evc');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [cart, setCart] = useState<any[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
+  const [statusClass, setStatusClass] = useState('');
+  const [modalDesc, setModalDesc] = useState('');
+  const qrRef = useRef<HTMLDivElement>(null);
 
-/**
- * buildWaafiPayload(amount, accountNo)
- * Compiles a secure payment gateway request payload.
- */
-function buildWaafiPayload(amount: string, accountNo: string) {
-  return {
-    schemaVersion: "1.0",
-    requestId: `REQ-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    timestamp: new Date().toISOString(),
-    channelName: "WEB",
-    serviceName: "API_PURCHASE",
-    serviceParams: {
-      merchantUid: PRODUCTION_MERCHANT.uid,
-      apiUserId: PRODUCTION_MERCHANT.apiUserId,
-      apiKey: PRODUCTION_MERCHANT.apiKey,
-      paymentMethod: "mwallet_account",
-      payerInfo: { accountNo: accountNo.replace(/\s+/g, "") },
-      transactionInfo: {
-        referenceId: `TXN-${Date.now()}`,
-        invoiceId: `INV-${Date.now()}`,
-        amount: parseFloat(amount).toFixed(2),
-        currency: "USD",
-        description: "Somali Proximity Tap-to-Pay Engine",
-      },
-    },
+  const menuCatalog = [
+    { id: 1, name: "Cappuccino", price: 3.50, category: "Coffee", icon: "fa-mug-hot", bg: "bg-amber-50 text-amber-700" },
+    { id: 2, name: "Iced Latte", price: 4.00, category: "Coffee", icon: "fa-whiskey-glass", bg: "bg-blue-50 text-blue-600" },
+    { id: 3, name: "Espresso Short", price: 2.20, category: "Coffee", icon: "fa-coffee", bg: "bg-orange-50 text-orange-800" },
+    { id: 4, name: "Club Sandwich", price: 6.50, category: "Food", icon: "fa-bread-slice", bg: "bg-emerald-50 text-emerald-700" }
+  ];
+
+  const providers: any = {
+    evc: { name: "EVC Plus", merchantId: "738435", ussdTemplate: (amt: any) => `*789*738435*${amt}#` },
+    edahab: { name: "eDahab", merchantId: "146136", ussdTemplate: (amt: any) => `*113*146136*${amt}#` }
   };
+
+  const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const activeMerchantId = providers[selectedProvider].merchantId;
+
+  const addToCart = (name: string, price: number) => {
+    setCart(prev => {
+      const exist = prev.find(i => i.name === name);
+      if (exist) return prev.map(i => i.name === name ? { ...i, quantity: i.quantity + 1 } : i);
+      return [...prev, { name, price, quantity: 1 }];
+    });
+  };
+
+  useEffect(() => {
+    if (currentMode === 'pos') setCurrentAmount(cartTotal.toFixed(2));
+  }, [cart, currentMode]);
+
+  const triggerPayment = (method: string) => {
+    setShowModal(true);
+    setModalTitle("Static Counter QR");
+    const staticUrl = `${baseUrl}/api/update-terminal-price?merchant=${activeMerchantId}`;
+    setModalDesc(staticUrl);
+    setStatusMsg("⏳ Synced backend state...");
+    setStatusClass("text-amber-600");
+
+    setTimeout(() => {
+      if (qrRef.current) {
+        qrRef.current.innerHTML = "";
+        new QRCode(qrRef.current, { text: staticUrl, width: 160, height: 160 });
+      }
+    }, 50);
+
+    fetch(`${baseUrl}/api/update-terminal-price`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchant: activeMerchantId, amount: parseFloat(currentAmount), provider: selectedProvider })
+    })
+    .then(() => { setStatusMsg(`● Registered Price: $${currentAmount}`); setStatusClass("text-emerald-600"); });
+  };
+
+  return (
+    <div className="bg-[#F8FAFC] fixed inset-0 flex flex-col justify-between overflow-hidden select-none">
+      <div className="bg-[#2B83EA] pt-3 pb-4 px-5 text-white text-center rounded-b-[24px] shadow-sm z-10">
+        <div class="flex bg-white/10 p-1 rounded-xl max-w-xs mx-auto mb-3 text-xs font-semibold">
+          <button onClick={() => setCurrentMode('keypad')} className={`flex-1 py-1.5 rounded-lg ${currentMode === 'keypad' ? 'bg-white text-[#2B83EA]' : 'text-white'}`}>Keypad</button>
+          <button onClick={() => setCurrentMode('pos')} className={`flex-1 py-1.5 rounded-lg ${currentMode === 'pos' ? 'bg-white text-[#2B83EA]' : 'text-white'}`}>POS</button>
+        </div>
+        <h2 className="text-base font-bold">Morla Cafe</h2>
+      </div>
+
+      <div className="flex-1 p-4 overflow-y-auto">
+        {currentMode === 'pos' && (
+          <div className="grid grid-cols-2 gap-2">
+            {menuCatalog.map(item => (
+              <div key={item.id} onClick={() => addToCart(item.name, item.price)} className="bg-white border p-3 rounded-xl cursor-pointer shadow-xs">
+                <h4 className="text-xs font-bold">{item.name}</h4>
+                <p className="text-xs text-[#2B83EA]">${item.price.toFixed(2)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="p-4 bg-white border-t flex flex-col gap-2">
+        <button onClick={() => triggerPayment('qr')} className="w-full bg-[#1E293B] text-white py-2.5 rounded-xl text-xs font-bold">Static QR</button>
+        <button disabled={parseFloat(currentAmount) === 0} className="w-full bg-[#2B83EA] text-white py-3 rounded-xl font-bold text-sm">PRINT RECEIPT (${currentAmount})</button>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-[24px] p-6 w-full max-w-xs text-center relative">
+            <button onClick={() => setShowModal(false)} className="absolute right-4 top-4 text-gray-400">✕</button>
+            <h3 className="font-bold text-[#0F2942]">{modalTitle}</h3>
+            <p className={`text-[10px] font-semibold ${statusClass}`}>{statusMsg}</p>
+            <div ref={qrRef} className="flex justify-center my-3 mx-auto min-h-[160px]"></div>
+            <p className="text-[11px] text-gray-400 truncate">{modalDesc}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
-
-/**
- * parseNdefRecord(rawBytes)
- * Safely strips the 3-byte NDEF language preamble.
- * Modified to bypass web-only TextDecoder dependency.
- */
-function parseNdefRecord(rawBytes: number[]) {
-  if (!rawBytes || rawBytes.length === 0) return "";
-  const langCodeLen = rawBytes[0] & 0x3f;
-  const startOffset = 1 + langCodeLen;
-
-  // Safe cross-platform conversion method compatible with React Native Hermes/JSC
-  return String.fromCharCode.apply(null, rawBytes.slice(startOffset));
-}
-
-function buildUssdUri(amount: string) {
-  const sanitizedAmount = parseFloat(amount || "0").toFixed(2);
-  return `tel:*712*${PRODUCTION_MERCHANT.apiUserId}*${sanitizedAmount}%23`;
-}
-
-function loadQRLib() {
-  return new Promise<void>((resolve, reject) => {
-    if ((window as any).QRCode) {
-      resolve();
-      return;
-    }
-    const s = document.createElement("script");
-    s.src =
-      "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("CDN tracking pipeline offline"));
-    document.head.appendChild(s);
-  });
-}
-
-const MOCK_HISTORY = [
-  {
-    id: "TXN-001",
-    amount: "$12.00",
-    wallet: "EVC +252611234",
-    status: "SETTLED",
-    time: "10:42 AM",
-  },
-  {
-    id: "TXN-002",
-    amount: "$8.50",
-    wallet: "Zaad +252631001",
-    status: "PENDING_PIN",
-    time: "10:28 AM",
-  },
-  {
-    id: "TXN-003",
-    amount: "$45.00",
-    wallet: "Sahal +252651009",
-    status: "FAILED",
-    time: "09:55 AM",
-  },
-] as const;
-
-type TxnStatus = "SETTLED" | "PENDING_PIN" | "FAILED";
-const STATUS_STYLE: Record<TxnStatus, { bg: string; color: string }> = {
-  SETTLED: { bg: "#022047", color: "#fff" },
-  PENDING_PIN: { bg: "rgba(2,32,71,0.05)", color: "rgba(2,32,71,0.5)" },
-  FAILED: { bg: "rgba(2,32,71,0.05)", color: "#022047" },
-};
 
 /* ═══════════════════════════════════════════
    ROOT COMPONENT LAYER
