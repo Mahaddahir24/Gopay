@@ -1,112 +1,107 @@
-import React, { useState, useEffect, useRef } from 'react';
-import QRCode from 'qrcodejs1';
+import { useState, useEffect, useRef } from "react";
 
-export default function App() {
-  const baseUrl = "https://gopay01.vercel.app";
-  const [currentMode, setCurrentMode] = useState<'keypad' | 'pos'>('pos');
-  const [currentAmount, setCurrentAmount] = useState('0');
-  const [selectedProvider, setSelectedProvider] = useState('evc');
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [cart, setCart] = useState<any[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [modalTitle, setModalTitle] = useState('');
-  const [statusMsg, setStatusMsg] = useState('');
-  const [statusClass, setStatusClass] = useState('');
-  const [modalDesc, setModalDesc] = useState('');
-  const qrRef = useRef<HTMLDivElement>(null);
+/* ─────────────────────────────────────────────
+   PRODUCTION CONFIGURATION RAILS
+───────────────────────────────────────────── */
+const PRODUCTION_MERCHANT = {
+  uid: "M0910291",
+  apiUserId: "1000416", // EVC Plus Short-Code Switch Identifier: *712*1000416*amount#
+  apiKey: "API-675418114",
+  name: "City Care Clinic",
+};
 
-  const menuCatalog = [
-    { id: 1, name: "Cappuccino", price: 3.50, category: "Coffee", icon: "fa-mug-hot", bg: "bg-amber-50 text-amber-700" },
-    { id: 2, name: "Iced Latte", price: 4.00, category: "Coffee", icon: "fa-whiskey-glass", bg: "bg-blue-50 text-blue-600" },
-    { id: 3, name: "Espresso Short", price: 2.20, category: "Coffee", icon: "fa-coffee", bg: "bg-orange-50 text-orange-800" },
-    { id: 4, name: "Club Sandwich", price: 6.50, category: "Food", icon: "fa-bread-slice", bg: "bg-emerald-50 text-emerald-700" }
-  ];
-
-  const providers: any = {
-    evc: { name: "EVC Plus", merchantId: "738435", ussdTemplate: (amt: any) => `*789*738435*${amt}#` },
-    edahab: { name: "eDahab", merchantId: "146136", ussdTemplate: (amt: any) => `*113*146136*${amt}#` }
+/**
+ * buildWaafiPayload(amount, accountNo)
+ * Compiles a secure payment gateway request payload.
+ */
+function buildWaafiPayload(amount: string, accountNo: string) {
+  return {
+    schemaVersion: "1.0",
+    requestId: `REQ-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    timestamp: new Date().toISOString(),
+    channelName: "WEB",
+    serviceName: "API_PURCHASE",
+    serviceParams: {
+      merchantUid: PRODUCTION_MERCHANT.uid,
+      apiUserId: PRODUCTION_MERCHANT.apiUserId,
+      apiKey: PRODUCTION_MERCHANT.apiKey,
+      paymentMethod: "mwallet_account",
+      payerInfo: { accountNo: accountNo.replace(/\s+/g, "") },
+      transactionInfo: {
+        referenceId: `TXN-${Date.now()}`,
+        invoiceId: `INV-${Date.now()}`,
+        amount: parseFloat(amount).toFixed(2),
+        currency: "USD",
+        description: "Somali Proximity Tap-to-Pay Engine",
+      },
+    },
   };
-
-  const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const activeMerchantId = providers[selectedProvider].merchantId;
-
-  const addToCart = (name: string, price: number) => {
-    setCart(prev => {
-      const exist = prev.find(i => i.name === name);
-      if (exist) return prev.map(i => i.name === name ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { name, price, quantity: 1 }];
-    });
-  };
-
-  useEffect(() => {
-    if (currentMode === 'pos') setCurrentAmount(cartTotal.toFixed(2));
-  }, [cart, currentMode]);
-
-  const triggerPayment = (method: string) => {
-    setShowModal(true);
-    setModalTitle("Static Counter QR");
-    const staticUrl = `${baseUrl}/api/update-terminal-price?merchant=${activeMerchantId}`;
-    setModalDesc(staticUrl);
-    setStatusMsg("⏳ Synced backend state...");
-    setStatusClass("text-amber-600");
-
-    setTimeout(() => {
-      if (qrRef.current) {
-        qrRef.current.innerHTML = "";
-        new QRCode(qrRef.current, { text: staticUrl, width: 160, height: 160 });
-      }
-    }, 50);
-
-    fetch(`${baseUrl}/api/update-terminal-price`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ merchant: activeMerchantId, amount: parseFloat(currentAmount), provider: selectedProvider })
-    })
-    .then(() => { setStatusMsg(`● Registered Price: $${currentAmount}`); setStatusClass("text-emerald-600"); });
-  };
-
-  return (
-    <div className="bg-[#F8FAFC] fixed inset-0 flex flex-col justify-between overflow-hidden select-none">
-      <div className="bg-[#2B83EA] pt-3 pb-4 px-5 text-white text-center rounded-b-[24px] shadow-sm z-10">
-        <div class="flex bg-white/10 p-1 rounded-xl max-w-xs mx-auto mb-3 text-xs font-semibold">
-          <button onClick={() => setCurrentMode('keypad')} className={`flex-1 py-1.5 rounded-lg ${currentMode === 'keypad' ? 'bg-white text-[#2B83EA]' : 'text-white'}`}>Keypad</button>
-          <button onClick={() => setCurrentMode('pos')} className={`flex-1 py-1.5 rounded-lg ${currentMode === 'pos' ? 'bg-white text-[#2B83EA]' : 'text-white'}`}>POS</button>
-        </div>
-        <h2 className="text-base font-bold">Morla Cafe</h2>
-      </div>
-
-      <div className="flex-1 p-4 overflow-y-auto">
-        {currentMode === 'pos' && (
-          <div className="grid grid-cols-2 gap-2">
-            {menuCatalog.map(item => (
-              <div key={item.id} onClick={() => addToCart(item.name, item.price)} className="bg-white border p-3 rounded-xl cursor-pointer shadow-xs">
-                <h4 className="text-xs font-bold">{item.name}</h4>
-                <p className="text-xs text-[#2B83EA]">${item.price.toFixed(2)}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="p-4 bg-white border-t flex flex-col gap-2">
-        <button onClick={() => triggerPayment('qr')} className="w-full bg-[#1E293B] text-white py-2.5 rounded-xl text-xs font-bold">Static QR</button>
-        <button disabled={parseFloat(currentAmount) === 0} className="w-full bg-[#2B83EA] text-white py-3 rounded-xl font-bold text-sm">PRINT RECEIPT (${currentAmount})</button>
-      </div>
-
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-[24px] p-6 w-full max-w-xs text-center relative">
-            <button onClick={() => setShowModal(false)} className="absolute right-4 top-4 text-gray-400">✕</button>
-            <h3 className="font-bold text-[#0F2942]">{modalTitle}</h3>
-            <p className={`text-[10px] font-semibold ${statusClass}`}>{statusMsg}</p>
-            <div ref={qrRef} className="flex justify-center my-3 mx-auto min-h-[160px]"></div>
-            <p className="text-[11px] text-gray-400 truncate">{modalDesc}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
+
+/**
+ * parseNdefRecord(rawBytes)
+ * Safely strips the 3-byte NDEF language preamble.
+ * Modified to bypass web-only TextDecoder dependency.
+ */
+function parseNdefRecord(rawBytes: number[]) {
+  if (!rawBytes || rawBytes.length === 0) return "";
+  const langCodeLen = rawBytes[0] & 0x3f;
+  const startOffset = 1 + langCodeLen;
+
+  // Safe cross-platform conversion method compatible with React Native Hermes/JSC
+  return String.fromCharCode.apply(null, rawBytes.slice(startOffset));
+}
+
+function buildUssdUri(amount: string) {
+  const sanitizedAmount = parseFloat(amount || "0").toFixed(2);
+  return `tel:*712*${PRODUCTION_MERCHANT.apiUserId}*${sanitizedAmount}%23`;
+}
+
+function loadQRLib() {
+  return new Promise<void>((resolve, reject) => {
+    if ((window as any).QRCode) {
+      resolve();
+      return;
+    }
+    const s = document.createElement("script");
+    s.src =
+      "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("CDN tracking pipeline offline"));
+    document.head.appendChild(s);
+  });
+}
+
+const MOCK_HISTORY = [
+  {
+    id: "TXN-001",
+    amount: "$12.00",
+    wallet: "EVC +252611234",
+    status: "SETTLED",
+    time: "10:42 AM",
+  },
+  {
+    id: "TXN-002",
+    amount: "$8.50",
+    wallet: "Zaad +252631001",
+    status: "PENDING_PIN",
+    time: "10:28 AM",
+  },
+  {
+    id: "TXN-003",
+    amount: "$45.00",
+    wallet: "Sahal +252651009",
+    status: "FAILED",
+    time: "09:55 AM",
+  },
+] as const;
+
+type TxnStatus = "SETTLED" | "PENDING_PIN" | "FAILED";
+const STATUS_STYLE: Record<TxnStatus, { bg: string; color: string }> = {
+  SETTLED: { bg: "#022047", color: "#fff" },
+  PENDING_PIN: { bg: "rgba(2,32,71,0.05)", color: "rgba(2,32,71,0.5)" },
+  FAILED: { bg: "rgba(2,32,71,0.05)", color: "#022047" },
+};
 
 /* ═══════════════════════════════════════════
    ROOT COMPONENT LAYER
@@ -148,9 +143,165 @@ function CustomerMode({
   const [copiedMerchant, setCopiedMerchant] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
 
-  const activeMerchantName = merchantName || "Morla Cafe";
-  const defaultMerchantId = merchantId || "738435";
+  // States for dynamic merchant details allowing runtime NFC overwriting
+  const [activeMerchantName, setActiveMerchantName] = useState(merchantName || "Morla Cafe");
+  const [activeMerchantId, setActiveMerchantId] = useState(merchantId || "738435");
+  const defaultMerchantId = activeMerchantId;
 
+  // NFC Core States
+  const [nfcStatus, setNfcStatus] = useState<"idle" | "listening" | "reading" | "success" | "error" | "unsupported">("idle");
+  const [nfcError, setNfcError] = useState("");
+
+  // NFC Scan Visual Feedback popup
+  const [scanToast, setScanToast] = useState<{ active: boolean; merchant: string; amount: string; wallet?: string } | null>(null);
+
+  // Web Audio synth for ascending pay acoustic cue
+  function playNfcFeedbackSound() {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.12); // E5
+      
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch (e) {
+      console.warn("AudioContext blocked or unavailable on page load:", e);
+    }
+  }
+
+  // Unified coordinator of NFC tag scans (real & simulated)
+  function triggerNfcTapAction(data: { merchant?: string; id?: string; amount?: string; wallet?: string }) {
+    playNfcFeedbackSound();
+
+    if (navigator.vibrate) {
+      navigator.vibrate([100, 50, 100]);
+    }
+
+    if (data.merchant) setActiveMerchantName(data.merchant);
+    if (data.id) setActiveMerchantId(data.id);
+    if (data.wallet) {
+      const w = data.wallet.toLowerCase().trim();
+      if (["evc", "edahab", "jeeb", "premier"].includes(w)) {
+        setSelectedWallet(w);
+      }
+    }
+
+    if (data.amount) {
+      const parsed = parseFloat(data.amount);
+      if (!isNaN(parsed) && parsed > 0) {
+        setLocalAmount(parsed.toFixed(2));
+      }
+    }
+
+    // Launch overlay scan feedback toast
+    setScanToast({
+      active: true,
+      merchant: data.merchant || activeMerchantName,
+      amount: data.amount || "",
+      wallet: data.wallet || selectedWallet
+    });
+  }
+
+  // Real Web Contactless NDEF scanner initialization
+  useEffect(() => {
+    if (!("NDEFReader" in window)) {
+      setNfcStatus("unsupported");
+      return;
+    }
+
+    let abortController: AbortController | null = null;
+
+    async function startScan() {
+      try {
+        setNfcStatus("listening");
+        abortController = new AbortController();
+        const reader = new (window as any).NDEFReader();
+        await reader.scan({ signal: abortController.signal });
+
+        reader.onreading = (event: any) => {
+          setNfcStatus("reading");
+          const { message } = event;
+          let parsed: any = {};
+
+          for (const record of message.records) {
+            try {
+              if (record.recordType === "url") {
+                const decoder = new TextDecoder();
+                const urlStr = decoder.decode(record.data);
+                const url = new URL(urlStr);
+                const params = new URLSearchParams(url.search);
+                if (params.get("merchant")) parsed.merchant = params.get("merchant");
+                if (params.get("id")) parsed.id = params.get("id");
+                if (params.get("amount")) parsed.amount = params.get("amount");
+                if (params.get("wallet")) parsed.wallet = params.get("wallet");
+              } else if (record.recordType === "text") {
+                const decoder = new TextDecoder();
+                const text = decoder.decode(record.data);
+                try {
+                  const j = JSON.parse(text);
+                  if (j.merchant) parsed.merchant = j.merchant;
+                  if (j.id) parsed.id = j.id;
+                  if (j.amount) parsed.amount = j.amount;
+                  if (j.wallet) parsed.wallet = j.wallet;
+                } catch {
+                  text.split(",").forEach((pair: string) => {
+                    const [k, v] = pair.split("=");
+                    if (k && v) {
+                      const trimmedK = k.trim().toLowerCase();
+                      const trimmedV = v.trim();
+                      if (trimmedK === "merchant" || trimmedK === "merchantname") parsed.merchant = trimmedV;
+                      if (trimmedK === "id" || trimmedK === "merchantid") parsed.id = trimmedV;
+                      if (trimmedK === "amount") parsed.amount = trimmedV;
+                      if (trimmedK === "wallet") parsed.wallet = trimmedV;
+                    }
+                  });
+                }
+              }
+            } catch (err) {
+              console.error("Error decoding NFC data:", err);
+            }
+          }
+
+          if (parsed.merchant || parsed.amount || parsed.id) {
+            setNfcStatus("success");
+            triggerNfcTapAction(parsed);
+            setTimeout(() => setNfcStatus("listening"), 3000);
+          } else {
+            setNfcStatus("error");
+            setNfcError("Tapped invalid tag format.");
+            setTimeout(() => setNfcStatus("listening"), 4000);
+          }
+        };
+
+        reader.onreadingerror = () => {
+          setNfcStatus("error");
+          setNfcError("Contactless signal connection lost. Place it closer.");
+          setTimeout(() => setNfcStatus("listening"), 3000);
+        };
+      } catch (err: any) {
+        console.warn("Iframe permissions block NDEF API in standard browser preview:", err);
+        setNfcStatus("unsupported"); // fallback elegantly
+      }
+    }
+
+    startScan();
+
+    return () => {
+      if (abortController) abortController.abort();
+    };
+  }, []);
 
   function copyText(text: string, isUssd: boolean) {
     if (navigator.clipboard) {
@@ -204,6 +355,45 @@ function CustomerMode({
     <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff", width: "100%", overflowY: "auto", overflowX: "hidden", borderRadius: "inherit" }}>
       {/* BLUE HEADER */}
       <div style={{ background: "#2F80ED", backgroundImage: "radial-gradient(rgba(255,255,255,0.15) 1.5px, transparent 1.5px)", backgroundSize: "20px 20px", padding: "32px 20px 24px", position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <button 
+          onClick={() => {
+            const mockTags = [
+              { merchant: "Sahal Pharmacy", id: "554319", amount: "15.50", wallet: "evc" },
+              { merchant: "Mogadishu Mall", id: "901183", amount: "42.00", wallet: "edahab" },
+              { merchant: "Jubba Fuel Station", id: "338421", amount: "8.75", wallet: "premier" },
+              { merchant: "Banadir Groceries", id: "128416", amount: "22.30", wallet: "jeeb" }
+            ];
+            const randomTag = mockTags[Math.floor(Math.random() * mockTags.length)];
+            triggerNfcTapAction(randomTag);
+          }} 
+          title="Simulate Contactless POS Merchant Tag Tap"
+          style={{ 
+            position: "absolute", 
+            top: 16, 
+            left: 16, 
+            height: 28, 
+            display: "flex", 
+            alignItems: "center", 
+            gap: 6, 
+            padding: "0 10px", 
+            borderRadius: 14, 
+            background: "rgba(255,255,255,0.2)", 
+            color: "#fff", 
+            border: "none", 
+            cursor: "pointer", 
+            fontSize: 11, 
+            fontWeight: 700 
+          }}
+        >
+          <span className="pulse-dot" style={{ 
+            display: "inline-block", 
+            width: 6, 
+            height: 6, 
+            borderRadius: "50%", 
+            background: "#fff"
+          }}></span>
+          📡 SIM TEST TAP
+        </button>
         <button onClick={() => setShowInfo(true)} style={{ position: "absolute", top: 16, right: 16, width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.2)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", fontSize: 16, fontWeight: "bold", fontFamily: "monospace" }}>
           !
         </button>
@@ -380,6 +570,22 @@ function CustomerMode({
           PAY ${localAmount || "0"}
         </a>
       </div>
+
+      {/* NFC SCAN TOAST FEEDBACK NOTIFICATION */}
+      {scanToast && (
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 110, width: "calc(100% - 32px)", maxWidth: 480, background: "#022047", color: "#fff", borderRadius: 16, padding: "12px 16px", boxShadow: "0 10px 25px rgba(2,32,71,0.25)", border: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", gap: 12, animation: "popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2F80ED" strokeWidth="2.5"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><circle cx="12" cy="20" r="1"></circle></svg>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>NFC Card Detected</div>
+            <div style={{ fontSize: 11, opacity: 0.82 }}>
+              Populated {scanToast.merchant} {scanToast.amount ? `($${scanToast.amount})` : ""}
+            </div>
+          </div>
+          <button onClick={() => setScanToast(null)} style={{ background: "none", border: "none", color: "#fff", opacity: 0.6, fontSize: 16, cursor: "pointer", padding: 4 }}>×</button>
+        </div>
+      )}
 
       {showInfo && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: "fadeIn 0.2s ease-out" }}>
