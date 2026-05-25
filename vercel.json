@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/update-terminal-price", "destination": "/api/update-terminal-price.js" }
+  ]
+}
+
