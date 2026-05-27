@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 /* ─────────────────────────────────────────────
    PRODUCTION CONFIGURATION RAILS
@@ -40,15 +40,11 @@ function buildWaafiPayload(amount: string, accountNo: string) {
 
 /**
  * parseNdefRecord(rawBytes)
- * Safely strips the 3-byte NDEF language preamble.
- * Modified to bypass web-only TextDecoder dependency.
  */
 function parseNdefRecord(rawBytes: number[]) {
   if (!rawBytes || rawBytes.length === 0) return "";
   const langCodeLen = rawBytes[0] & 0x3f;
   const startOffset = 1 + langCodeLen;
-
-  // Safe cross-platform conversion method compatible with React Native Hermes/JSC
   return String.fromCharCode.apply(null, rawBytes.slice(startOffset));
 }
 
@@ -155,7 +151,45 @@ function CustomerMode({
   // NFC Scan Visual Feedback popup
   const [scanToast, setScanToast] = useState<{ active: boolean; merchant: string; amount: string; wallet?: string } | null>(null);
 
-  // Web Audio synth for ascending pay acoustic cue
+  // Live POS Terminal connection bridge
+  useEffect(() => {
+    // If the QR has a static invoice locked in the QR URL parameters, use it and bypass polling
+    if (merchantAmount && parseFloat(merchantAmount) > 0) {
+      setLocalAmount(parseFloat(merchantAmount).toFixed(2));
+      return;
+    }
+
+    // Connect to the shared POS Cloud Server
+    const POS_SERVER = "https://ais-pre-se23lytoniyu6k4jzuctwz-149692226185.europe-west3.run.app";
+
+    const fetchLivePrice = async () => {
+      try {
+        const response = await fetch(`${POS_SERVER}/api/get-terminal-price?merchant=${activeMerchantId}`);
+        const data = await response.json();
+        
+        if (data.success && data.session && data.session.amount !== undefined) {
+          const currentBill = Number(data.session.amount);
+          // If unpaid or updated, auto-update the customer's phone view in real-time
+          setLocalAmount(currentBill > 0 ? currentBill.toFixed(2) : "");
+          
+          if (data.session.provider) {
+            const proposedWallet = data.session.provider.toLowerCase().trim();
+            if (["evc", "edahab", "jeeb", "premier"].includes(proposedWallet)) {
+              setSelectedWallet(proposedWallet);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Continuous sync tracking blocked or offline:", error);
+      }
+    };
+
+    fetchLivePrice();
+    const syncInterval = setInterval(fetchLivePrice, 1500); // Poll every 1.5s for seamless live register feedback
+    return () => clearInterval(syncInterval);
+  }, [merchantAmount, activeMerchantId]);
+
+  // Web Audio synth for feedback sound
   function playNfcFeedbackSound() {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -177,7 +211,7 @@ function CustomerMode({
       osc.start();
       osc.stop(ctx.currentTime + 0.4);
     } catch (e) {
-      console.warn("AudioContext blocked or unavailable on page load:", e);
+      console.warn("AudioContext initialization error:", e);
     }
   }
 
@@ -205,7 +239,6 @@ function CustomerMode({
       }
     }
 
-    // Launch overlay scan feedback toast
     setScanToast({
       active: true,
       merchant: data.merchant || activeMerchantName,
@@ -214,7 +247,7 @@ function CustomerMode({
     });
   }
 
-  // Real Web Contactless NDEF scanner initialization
+  // Contactless Scan setup
   useEffect(() => {
     if (!("NDEFReader" in window)) {
       setNfcStatus("unsupported");
@@ -291,8 +324,7 @@ function CustomerMode({
           setTimeout(() => setNfcStatus("listening"), 3000);
         };
       } catch (err: any) {
-        console.warn("Iframe permissions block NDEF API in standard browser preview:", err);
-        setNfcStatus("unsupported"); // fallback elegantly
+        setNfcStatus("unsupported");
       }
     }
 
@@ -514,7 +546,7 @@ function CustomerMode({
         
         <div style={{ background: "rgba(2,32,71,0.03)", border: "1px solid rgba(2,32,71,0.1)", borderRadius: 16, padding: "24px", textAlign: "center", marginBottom: 24 }}>
           <span style={{ fontSize: 28, fontWeight: 700, color: "rgba(2,32,71,0.7)", marginRight: 8, verticalAlign: "middle" }}>$</span>
-          <span style={{ fontSize: 48, fontWeight: 700, color: "#022047", verticalAlign: "middle" }}>{localAmount || "0"}</span>
+          <span style={{ fontSize: 48, fontWeight: 700, color: "#022047", verticalAlign: "middle" }}>{localAmount || "0.00"}</span>
         </div>
 
         <div style={{ height: 1, background: "rgba(2,32,71,0.1)", margin: "0 -16px 20px" }}></div>
@@ -532,7 +564,7 @@ function CustomerMode({
                  height: 56, 
                  fontSize: 22, 
                  fontWeight: 600, 
-                 color: k === "⌫" ? "#022047" : "#022047",
+                 color: "#022047",
                  display: "flex",
                  alignItems: "center",
                  justifyContent: "center",
@@ -567,11 +599,11 @@ function CustomerMode({
             textAlign: "center"
           }}
         >
-          PAY ${localAmount || "0"}
+          PAY ${localAmount || "0.00"}
         </a>
       </div>
 
-      {/* NFC SCAN TOAST FEEDBACK NOTIFICATION */}
+      {/* NFC SCAN TOAST FEEDBACK */}
       {scanToast && (
         <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 110, width: "calc(100% - 32px)", maxWidth: 480, background: "#022047", color: "#fff", borderRadius: 16, padding: "12px 16px", boxShadow: "0 10px 25px rgba(2,32,71,0.25)", border: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", gap: 12, animation: "popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards" }}>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -680,481 +712,9 @@ function CustomerMode({
   );
 }
 
-
-
-/* ═══════════════════════════════════════════
+/* ─────────────────────────────────────────────
    VISUAL DICTIONARY SCHEMATICS
-═══════════════════════════════════════════ */
-const S = {
-  shell: {
-    minHeight: "100vh",
-    background: "rgba(2,32,71,0.08)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "24px 0",
-  },
-  phone: {
-    width: 375,
-    minHeight: 720,
-    maxHeight: "92vh",
-    background: "#fff",
-    borderRadius: 40,
-    overflow: "hidden",
-    boxShadow: "0 32px 80px rgba(0,0,0,0.15), 0 0 0 1px rgba(2,32,71,0.2)",
-    display: "flex",
-    flexDirection: "column",
-    position: "relative",
-  },
-  statusBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "14px 28px 8px",
-  },
-  statusTime: { fontSize: 14, fontWeight: 700, color: "#022047" },
-  statusIcons: { fontSize: 11, color: "#022047" },
-  toggleWrap: { padding: "4px 16px 12px" },
-  toggleTrack: {
-    position: "relative",
-    display: "flex",
-    background: "rgba(2,32,71,0.05)",
-    borderRadius: 12,
-    padding: 3,
-  },
-  toggleThumb: {
-    position: "absolute",
-    top: 3,
-    width: "calc(50% - 4px)",
-    height: "calc(100% - 6px)",
-    background: "#022047",
-    borderRadius: 9,
-    transition: "left 0.2s cubic-bezier(0.4,0,0.2,1)",
-  },
-  toggleBtn: {
-    flex: 1,
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "8px 0",
-    fontSize: 13,
-  },
-  body: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    overflowY: "auto",
-  },
-  amountDisplay: { padding: "20px 24px 8px", textAlign: "center" },
-  amountLabel: {
-    fontSize: 11,
-    color: "rgba(2,32,71,0.4)",
-    fontWeight: 600,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  amountValue: {
-    fontSize: 48,
-    fontWeight: 700,
-    color: "#022047",
-    letterSpacing: -2,
-    marginTop: 4,
-  },
-  keypadGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3,1fr)",
-    gap: 6,
-    padding: "8px 16px 12px",
-  },
-  key: {
-    padding: "16px 0",
-    border: "1px solid rgba(2,32,71,0.1)",
-    borderRadius: 12,
-    fontSize: 20,
-    fontWeight: 500,
-    cursor: "pointer",
-  },
-  terminalWrap: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    padding: "48px 20px 20px",
-    position: "relative",
-  },
-  terminalCenter: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 10,
-    width: "100%",
-  },
-  tabBar: {
-    display: "flex",
-    gap: 4,
-    background: "rgba(2,32,71,0.05)",
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 16,
-    width: "100%",
-  },
-  tabBtn: {
-    flex: 1,
-    border: "none",
-    borderRadius: 7,
-    padding: "8px 0",
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  nfcRing: {
-    width: 80,
-    height: 80,
-    borderRadius: "50%",
-    border: "1.5px solid rgba(2,32,71,0.1)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  nfcInner: {
-    width: 56,
-    height: 56,
-    borderRadius: "50%",
-    border: "1px solid rgba(2,32,71,0.15)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  spinner: {
-    width: 40,
-    height: 40,
-    border: "2px solid rgba(2,32,71,0.1)",
-    borderTop: "2px solid #022047",
-    borderRadius: "50%",
-    marginBottom: 16,
-  },
-  iconWrap: { marginBottom: 12 },
-  terminalAmount: {
-    fontSize: 36,
-    fontWeight: 700,
-    color: "#022047",
-    letterSpacing: -1,
-  },
-  terminalStatus: { fontSize: 17, fontWeight: 600, color: "#022047" },
-  terminalSub: {
-    fontSize: 12,
-    color: "rgba(2,32,71,0.4)",
-    textAlign: "center",
-    maxWidth: 240,
-  },
-  backBtn: {
-    position: "absolute",
-    top: 12,
-    left: 16,
-    background: "none",
-    border: "none",
-    fontSize: 13,
-    color: "rgba(2,32,71,0.4)",
-    cursor: "pointer",
-  },
-  devBtn: {
-    marginTop: 16,
-    background: "rgba(2,32,71,0.05)",
-    border: "1px dashed rgba(2,32,71,0.2)",
-    borderRadius: 10,
-    padding: "8px 14px",
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#022047",
-    cursor: "pointer",
-  },
-  qrWrap: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 12,
-    width: "100%",
-  },
-  qrFrame: {
-    width: 180,
-    height: 180,
-    borderRadius: 12,
-    border: "1.5px solid rgba(2,32,71,0.1)",
-    background: "rgba(2,32,71,0.05)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  qrLoader: { display: "flex", flexDirection: "column", alignItems: "center" },
-  qrAmountPill: {
-    background: "#022047",
-    color: "#fff",
-    borderRadius: 20,
-    padding: "4px 14px",
-    fontSize: 14,
-    fontWeight: 700,
-  },
-  qrInstruction: {
-    fontSize: 12,
-    color: "rgba(2,32,71,0.6)",
-    textAlign: "center",
-    maxWidth: 220,
-  },
-  ussdChip: {
-    display: "flex",
-    alignItems: "center",
-    background: "rgba(2,32,71,0.05)",
-    borderRadius: 8,
-    padding: "6px 12px",
-    border: "1px solid rgba(2,32,71,0.1)",
-  },
-  ussdChipCode: { fontFamily: "monospace", fontSize: 12, fontWeight: 700 },
-  historyWrap: { padding: "12px 16px 20px" },
-  sectionLabel: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: "rgba(2,32,71,0.4)",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  txnRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "10px 0",
-    borderBottom: "1px solid rgba(2,32,71,0.05)",
-  },
-  txnWallet: { fontSize: 13, fontWeight: 600 },
-  txnMeta: { fontSize: 11, color: "rgba(2,32,71,0.4)" },
-  txnAmount: { fontSize: 13, fontWeight: 700 },
-  badge: {
-    display: "inline-block",
-    fontSize: 8,
-    fontWeight: 700,
-    padding: "2px 5px",
-    borderRadius: 4,
-  },
-  walletCard: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "12px",
-    borderRadius: 12,
-    marginBottom: 6,
-  },
-  walletName: { fontSize: 13, fontWeight: 700 },
-  walletPhone: { fontSize: 11, color: "rgba(2,32,71,0.4)" },
-  walletBal: { fontSize: 14, fontWeight: 700 },
-  payBtn: {
-    background: "#022047",
-    border: "none",
-    borderRadius: 12,
-    padding: "14px 0",
-    cursor: "pointer",
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  broadcastWrap: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "24px",
-  },
-  orbitWrap: {
-    width: 100,
-    height: 100,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  orbitOuter: {
-    width: 100,
-    height: 100,
-    borderRadius: "50%",
-    border: "1px dashed rgba(2,32,71,0.2)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  orbitMid: {
-    width: 70,
-    height: 70,
-    borderRadius: "50%",
-    border: "1.5px solid rgba(2,32,71,0.15)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  orbitCore: { width: 40, height: 40, borderRadius: "50%", background: "#022047" },
-  broadcastTitle: {
-    fontSize: 18,
-    fontWeight: 700,
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  broadcastSub: {
-    fontSize: 12,
-    color: "rgba(2,32,71,0.6)",
-    textAlign: "center",
-    lineHeight: 1.5,
-    maxWidth: 240,
-  },
-  qrScanWrap: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    padding: "36px 20px 24px",
-    position: "relative",
-  },
-  scanViewfinder: {
-    width: 180,
-    height: 180,
-    borderRadius: 16,
-    border: "2px solid #022047",
-    position: "relative",
-    overflow: "hidden",
-  },
-  scanLine: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: 2,
-    background: "#022047",
-  },
-  scannedCard: {
-    width: "100%",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  scannedSection: { padding: "4px 8px" },
-  scannedLabel: {
-    fontSize: 10,
-    fontWeight: 600,
-    color: "rgba(2,32,71,0.4)",
-    textTransform: "uppercase",
-  },
-  scannedValue: { fontSize: 18, fontWeight: 700 },
-  scannedDivider: { height: 1, background: "rgba(2,32,71,0.05)" },
-  dialBtn: {
-    display: "block",
-    textAlign: "center",
-    background: "#022047",
-    color: "#fff",
-    textDecoration: "none",
-    borderRadius: 12,
-    padding: "14px 0",
-    fontSize: 13,
-    fontWeight: 700,
-    margin: "8px 0",
-  },
-  inAppBtn: {
-    background: "rgba(2,32,71,0.05)",
-    border: "none",
-    borderRadius: 12,
-    padding: "12px 0",
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  ussdOverlay: {
-    position: "absolute",
-    inset: 0,
-    background: "rgba(0,0,0,0.4)",
-    display: "flex",
-    alignItems: "flex-end",
-    zIndex: 50,
-  },
-  ussdCard: {
-    width: "100%",
-    background: "#fff",
-    borderRadius: "20px 20px 0 0",
-    padding: "20px",
-    display: "flex",
-    flexDirection: "column",
-  },
-  ussdCarrier: {
-    fontSize: 9,
-    fontWeight: 700,
-    color: "rgba(2,32,71,0.4)",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  ussdTitle: {
-    fontSize: 16,
-    fontWeight: 700,
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  ussdAmount: {
-    fontSize: 13,
-    color: "rgba(2,32,71,0.6)",
-    textAlign: "center",
-    marginBottom: 12,
-  },
-  pinDots: {
-    display: "flex",
-    gap: 12,
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  pinDot: { width: 12, height: 12, borderRadius: "50%" },
-  ussdGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 },
-  ussdKey: {
-    padding: "12px 0",
-    border: "1px solid rgba(2,32,71,0.1)",
-    borderRadius: 10,
-    fontSize: 18,
-    fontWeight: 500,
-    background: "#fff",
-  },
-  receiptWrap: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    padding: "32px 24px",
-  },
-  receiptAmount: { fontSize: 38, fontWeight: 700, letterSpacing: -1 },
-  receiptMerchant: { fontSize: 13, color: "rgba(2,32,71,0.6)", marginBottom: 16 },
-  receiptCard: {
-    width: "100%",
-    background: "rgba(2,32,71,0.05)",
-    borderRadius: 12,
-    padding: "4px 12px",
-    marginBottom: 20,
-  },
-  receiptRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    padding: "10px 0",
-    borderBottom: "1px solid rgba(2,32,71,0.1)",
-  },
-  receiptKey: { fontSize: 12, color: "rgba(2,32,71,0.4)" },
-  receiptVal: { fontSize: 12, fontWeight: 600, color: "#022047" },
-  doneBtn: {
-    width: "100%",
-    background: "#022047",
-    border: "none",
-    borderRadius: 12,
-    padding: "14px 0",
-    fontSize: 14,
-    fontWeight: 700,
-    color: "#fff",
-  },
-};
-
-/* ═══════════════════════════════════════════
-   ANIMATION RULES
-═══════════════════════════════════════════ */
+───────────────────────────────────────────── */
 const CSS = `
   @keyframes pulseRing {
     0%   { box-shadow: 0 0 0 0 rgba(0,0,0,0.08); }
@@ -1172,15 +732,5 @@ const CSS = `
     0% { opacity: 0; }
     100% { opacity: 1; }
   }
-  @keyframes slideUp {
-    0% { transform: translateY(100%); opacity: 0; }
-    100% { transform: translateY(0); opacity: 1; }
-  }
   .pop-in { animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-  @keyframes orbitSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  .orbit-outer { animation: orbitSpin 8s linear infinite; }
-  .orbit-mid   { animation: orbitSpin 5s linear infinite reverse; }
-  @keyframes scanMove { 0% { top: 0; } 100% { top: calc(100% - 2px); } }
-  .scan-line { animation: scanMove 1.4s ease-in-out infinite alternate; }
-  .scan-frame { animation: pulseRing 1.4s ease-in-out infinite; }
 `;
