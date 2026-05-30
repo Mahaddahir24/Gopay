@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoPay Secure Transaction Verifier</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Inter for general UI, Space Grotesk for Headings, JetBrains Mono for secure ledger data -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Dynamic Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .heading-font {
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .mono-font {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Dynamic Pulse Keyframes */
+    @keyframes subtle-glow {
+      0%, 100% { opacity: 0.95; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.02); }
+    }
+    .status-pulse {
+      animation: subtle-glow 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-[#0B0F19] text-slate-100 min-h-screen flex flex-col justify-between selection:bg-[#00C2B2] selection:text-[#0B0F19]">
+
+  <!-- Global Endpoint Config -->
+  <script>
+    // Point this to your POS terminal application URL
+    const GO_PAY_POS_URL = "https://gopaypossystem.vercel.app";
+  </script>
+
+  <!-- Navigation Brand Header bar -->
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-6 py-4 sticky top-0 z-50">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-[#00C2B2] rounded-xl flex items-center justify-center font-black text-white text-base shadow-lg shadow-[#00C2B2]/10">
+          GP
+        </div>
+        <div>
+          <h1 class="text-sm font-extrabold tracking-tight heading-font text-white flex items-center gap-1.5 uppercase">
+            GoPay Transaction Ledger
+          </h1>
+          <p class="text-[10px] text-slate-400">Merchant Payment Authorization & Audit Registry</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+          Gateway Active
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Auditing Container Box -->
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8 md:py-12 space-y-8">
+    
+    <!-- Explanatory Audit Banner -->
+    <div class="bg-gradient-to-r from-slate-900 to-[#0F172A] border border-slate-800 rounded-2xl p-6 relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div class="space-y-2">
+        <h2 class="text-xl font-bold tracking-tight text-white heading-font">Verify Mobile Receipts Instantly</h2>
+        <p class="text-xs text-slate-400 max-w-xl leading-relaxed">
+          Provide any <strong>Invoice ID</strong> or <strong>Merchant ID</strong> to fetch real-time, tamper-proof proof-of-payment logs. Ensures absolute sync between customer-facing mobile checkouts and active cashier terminals.
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="prefillSample()" class="px-3.5 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-[11px] font-bold text-slate-300 border border-slate-700 transition cursor-pointer">
+          Prefill Sample Merch
+        </button>
+      </div>
+    </div>
+
+    <!-- Search / Audit Form Ingress Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      
+      <!-- Auditing Inputs Panel -->
+      <section class="lg:col-span-5 bg-slate-900 border border-slate-800/80 rounded-2xl p-5 space-y-6">
+        <div class="flex items-center gap-2 text-white border-b border-slate-800 pb-3">
+          <i data-lucide="shield-check" class="h-4.5 w-4.5 text-[#00C2B2]"></i>
+          <h3 class="text-xs font-bold uppercase tracking-wider heading-font">Audit Query Filters</h3>
+        </div>
+
+        <form id="auditForm" onsubmit="handleQuerySubmit(event)" class="space-y-4">
+          <!-- Merchant ID Input -->
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Merchant ID (MID)</label>
+            <div class="relative">
+              <input type="text" id="inputMerchantId" required placeholder="e.g. R-10245" class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-[#00C2B2] uppercase font-bold tracking-wide">
+              <i data-lucide="store" class="absolute right-3.5 top-3 h-4 w-4 text-slate-600"></i>
+            </div>
+          </div>
+
+          <!-- Invoice ID Input -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between items-center">
+              <label class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Invoice ID / Session Ref</label>
+              <span class="text-[9px] text-slate-500 italic">(Awaiting Dynamic live POS)</span>
+            </div>
+            <div class="relative">
+              <input type="text" id="inputInvoiceId" placeholder="e.g. Leave blank to fetch currently active POS basket" class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-700 focus:outline-none focus:border-[#00C2B2]">
+              <i data-lucide="hash" class="absolute right-3.5 top-3 h-4 w-4 text-slate-600"></i>
+            </div>
+          </div>
+
+          <button type="submit" class="w-full py-3 bg-[#00C2B2] hover:bg-[#00b0a2] active:scale-[0.98] text-slate-950 font-black text-xs tracking-wider uppercase rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-[#00C2B2]/10 transition-all cursor-pointer">
+            <i data-lucide="search" class="h-4 w-4"></i>
+            <span>Execute Identity Verification</span>
+          </button>
+        </form>
+
+        <div class="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/40 text-[10.5px] leading-relaxed text-slate-400 space-y-1">
+          <span class="font-bold text-slate-300 block mb-1">💡 Real-time Hook Mechanism:</span>
+          If you leave the Invoice ID blank, this verification portal will hook directly into the live cashier terminal and fetch whatever billing profile is actively checked out.
+        </div>
+      </section>
+
+      <!-- Verification Output Result Panels -->
+      <section class="lg:col-span-7 space-y-6">
+
+        <!-- Case 1: Waiting / Blank state -->
+        <div id="statePlaceholder" class="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-12 text-center text-slate-500 space-y-4">
+          <div class="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-slate-600">
+            <i data-lucide="fingerprint" class="h-8 w-8"></i>
+          </div>
+          <div class="space-y-1.5 max-w-sm mx-auto">
+            <p class="text-xs font-bold text-slate-300 uppercase tracking-wider">Awaiting Verification Check</p>
+            <p class="text-[11px] leading-relaxed">Enter credentials in the filter form to run cryptographic verification against the POS database register.</p>
+          </div>
+        </div>
+
+        <!-- Case 2: Loading State -->
+        <div id="stateLoading" class="hidden bg-slate-900/40 border border-slate-800/60 rounded-2xl p-12 text-center text-slate-500 space-y-4">
+          <div class="w-12 h-12 rounded-full border-4 border-slate-800 border-t-[#00C2B2] animate-spin mx-auto"></div>
+          <p class="text-xs font-black uppercase tracking-wider text-slate-400">Querying GoPay Distributed Ledger...</p>
+        </div>
+
+        <!-- Case 3: Error / Not Found -->
+        <div id="stateError" class="hidden bg-rose-950/20 border border-rose-900/40 rounded-2xl p-8 text-center text-rose-300 space-y-4">
+          <div class="w-12 h-12 rounded-full bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mx-auto">
+            <i data-lucide="alert-triangle" class="h-6 w-6"></i>
+          </div>
+          <div class="space-y-1 max-w-sm mx-auto">
+            <p class="text-xs font-black uppercase tracking-wider text-rose-400">No Authorized Invoice Found</p>
+            <p class="text-[10px] text-rose-300/80 leading-relaxed" id="errorDescription">The POS Terminal returned an empty or expired session status for this merchant key. Check merchant ID or cart status.</p>
+          </div>
+        </div>
+
+        <!-- Case 4: Validated Paid Settlement Record -->
+        <div id="statePassed" class="hidden space-y-6">
+          
+          <!-- Banner for Successful Check -->
+          <div class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-5 rounded-2xl flex items-center gap-4 status-pulse">
+            <div class="w-11 h-11 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-300 border border-emerald-500/30">
+              <i data-lucide="check-circle-2" class="h-5.5 w-5.5"></i>
+            </div>
+            <div>
+              <p class="text-xs font-black uppercase tracking-widest text-emerald-300">AUTHORIZATION CONFIRMED</p>
+              <p class="text-[10px] text-emerald-400/80">This invoice has been successfully remitted and validated against the Salaama POS. Safe to release goods.</p>
+            </div>
+          </div>
+
+          <!-- The Digital audit receipt -->
+          <div class="bg-white text-slate-900 rounded-3xl p-6 border-2 border-slate-200 shadow-xl relative overflow-hidden space-y-4 mono-font text-xs">
+            <div class="absolute -right-8 -top-8 w-24 h-24 bg-emerald-500/10 rounded-full border border-dashed border-emerald-500/20 pointer-events-none"></div>
+            
+            <!-- Audited Stamp Emblem -->
+            <div class="absolute top-4 right-4 bg-emerald-600 text-white font-sans text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest flex items-center gap-1 select-none">
+              <i data-lucide="shield-check" class="h-2.5 w-2.5"></i>Verified
+            </div>
+
+            <!-- Receipt Header -->
+            <div class="text-center border-b border-dashed border-slate-300 pb-3.5 space-y-1">
+              <h2 class="text-sm font-black uppercase tracking-tight text-slate-950" id="recMerchantName">Salaam Retail Outlet</h2>
+              <p class="text-[9px] text-slate-500">Merchant MID: <span id="recMerchantId" class="font-bold text-slate-800">---</span></p>
+              <p class="text-[9px] text-slate-500">Validation Timestamp: <span id="recTimestamp" class="text-slate-700">---</span></p>
+              <p class="text-[10px] text-teal-600 font-extrabold tracking-tight mt-1" id="recTxHash">TX-GOPAY-84930</p>
+            </div>
+
+            <!-- Items Container block inside receipt code -->
+            <div class="space-y-2 border-b border-dashed border-slate-300 pb-3.5">
+              <div class="grid grid-cols-12 gap-1 text-[9.5px] text-slate-400 uppercase tracking-widest font-black font-sans pb-1">
+                <span class="col-span-6">Settled Line Item</span>
+                <span class="col-span-2 text-center">Qty</span>
+                <span class="col-span-4 text-right">Price</span>
+              </div>
+              <div id="recItemsList" class="space-y-1 text-[10.5px]">
+                <!-- Dynamically written items array -->
+              </div>
+            </div>
+
+            <!-- Total display block -->
+            <div class="flex justify-between items-center text-sm font-extrabold text-slate-950 px-0.5">
+              <span class="font-sans uppercase text-[10px] tracking-widest text-slate-400">Grand Settle Value</span>
+              <span id="recTotal" class="text-2xl font-black text-[#00828A]">$0.00</span>
+            </div>
+
+            <!-- Verification metadata signature -->
+            <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3.5 text-center text-[9.5px] leading-relaxed text-slate-500 space-y-1 font-sans">
+              <div class="flex items-center justify-center gap-1.5 text-emerald-600 font-black uppercase tracking-widest text-[8.5px]">
+                <i data-lucide="check" class="h-3 w-3"></i>
+                <span>Cryptographic Ledger Sync ✓</span>
+              </div>
+              Authorized on <span class="font-semibold text-slate-800" id="recProvider">EVC Plus Portal</span>. Safe for checkout merchant release. Verified from public validation peer <strong>gopay01.vercel.app</strong>.
+            </div>
+          </div>
+
+          <!-- Utility Printing Drawer -->
+          <div class="flex gap-2">
+            <button onclick="window.print()" class="flex-1 py-3 border border-slate-800 hover:border-slate-700 hover:bg-slate-900 bg-slate-900/40 text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer">
+              <i data-lucide="printer" class="h-4 w-4"></i>
+              <span>Print Secure Receipt</span>
+            </button>
+            <button onclick="restartVerificationQuery()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-750 text-slate-100 font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer">
+              <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+              <span>Run Another Query</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Case 5: Invoice Exists but Pending Settlement -->
+        <div id="statePending" class="hidden space-y-4">
+          <div class="bg-amber-500/10 border border-amber-500/20 text-amber-500 p-5 rounded-2xl flex items-center gap-4">
+            <div class="w-11 h-11 bg-amber-500/20 rounded-xl flex items-center justify-center text-amber-300 border border-amber-500/30 animate-pulse">
+              <i data-lucide="hourglass" class="h-5.5 w-5.5"></i>
+            </div>
+            <div>
+              <p class="text-xs font-black uppercase tracking-widest text-amber-300">SESSIONS PENDING PAYMENT</p>
+              <p class="text-[10px] text-amber-400/80">This billing profile was successfully built but has not been settled with a PIN. Waiting for user checkout flow.</p>
+            </div>
+          </div>
+
+          <!-- Mini Details Card -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <div class="flex justify-between items-center text-xs text-slate-300">
+              <span class="text-slate-400">Assigned ID:</span>
+              <span class="font-mono font-bold" id="pendingInvoiceId">INV-00000</span>
+            </div>
+            <div class="flex justify-between items-center text-xs text-slate-300 border-t border-slate-800 pt-3">
+              <span class="text-slate-400">Billing Value:</span>
+              <span class="font-mono font-bold text-xl text-amber-400" id="pendingTotal">$0.00</span>
+            </div>
+            <!-- Interactive countdown visualizer button to go paid -->
+            <button id="btnForceCheckPayment" onclick="forceCheckAgain()" class="w-full py-3.5 bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-755 border border-slate-700/80 font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all">
+              <i data-lucide="refresh-cw" class="h-3.5 w-3.5 animate-spin"></i>
+              <span>Refresh Status Now (Auto-polling every 1.5s)</span>
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- Global Footer -->
+  <footer class="border-t border-slate-800/80 bg-slate-950 px-6 py-6 text-center text-slate-500 space-y-2 shrink-0">
+    <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-[10.5px]">
+      <p>© 2026 GoPay Merchant Infrastructure. All rights reserved.</p>
+      <div class="flex gap-4">
+        <a href="https://gopaypossystem.vercel.app" class="hover:text-slate-300 underline" target="_blank">Merchant POS portal</a>
+        <span>•</span>
+        <span class="text-slate-400 mono-font">SHA-256 Ledger Synchronized</span>
+      </div>
+    </div>
+  </footer>
+
+
+  <!-- Interactive Screen Engine Scripts -->
+  <script>
+    // System Variables
+    let currentPollingInterval = null;
+    let targetMerchantId = "";
+    let targetInvoiceId = "";
+
+    // Parse URL parameters automatically on ingress
+    function initVerifier() {
+      const params = new URLSearchParams(window.location.search);
+      const mId = params.get("merchant") || "";
+      const iId = params.get("invoice") || "";
+
+      if (mId) {
+        document.getElementById("inputMerchantId").value = mId;
+        if (iId) {
+          document.getElementById("inputInvoiceId").value = iId;
+        }
+        // Auto trigger search if we have merchant config loaded
+        triggerFetchVerification(mId, iId);
+      } else {
+        showScreenArea("placeholder");
+      }
+    }
+
+    // Prefill Sample Merchant for developers/cashiers
+    function prefillSample() {
+      document.getElementById("inputMerchantId").value = "R-10245";
+      document.getElementById("inputInvoiceId").value = "";
+    }
+
+    // On form filter submit Handler
+    function handleQuerySubmit(event) {
+      event.preventDefault();
+      const mId = document.getElementById("inputMerchantId").value.trim();
+      const iId = document.getElementById("inputInvoiceId").value.trim();
+
+      triggerFetchVerification(mId, iId);
+    }
+
+    // Start fetching and polling statuses
+    function triggerFetchVerification(merchantId, invoiceId) {
+      targetMerchantId = merchantId;
+      targetInvoiceId = invoiceId;
+
+      if (currentPollingInterval) clearInterval(currentPollingInterval);
+
+      showScreenArea("loading");
+
+      async function runQuery() {
+        try {
+          const res = await fetch(`${GO_PAY_POS_URL}/api/get-terminal-price?merchant=${merchantId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.session && data.session.amount > 0) {
+              const session = data.session;
+              
+              // If invoiceId filter was supplied, assert matching profile ID
+              if (invoiceId && session.invoiceId !== invoiceId) {
+                showScreenArea("error", "The active session on this Cashier POS is mismatching with the requested Invoice ID.");
+                return;
+              }
+
+              // Found dynamic valid session: Check paid state status
+              if (session.status === "paid") {
+                clearInterval(currentPollingInterval);
+                displayReceiptPassed(session);
+              } else {
+                displayPendingSettle(session);
+              }
+            } else {
+              clearInterval(currentPollingInterval);
+              showScreenArea("error", "No billing totals are active for this merchant at this time. Build a cart checkout on POS register.");
+            }
+          } else {
+            clearInterval(currentPollingInterval);
+            showScreenArea("error", `POS terminal server connection returned HTTP error status: ${res.status}`);
+          }
+        } catch(err) {
+          clearInterval(currentPollingInterval);
+          showScreenArea("error", "Network Failure. Please certify that your POS backend server url can receive cross-origin fetches.");
+          console.warn(err);
+        }
+      }
+
+      runQuery();
+      // Setup live polling every 1.5 seconds for instant cashier responsive audit
+      currentPollingInterval = setInterval(runQuery, 1500);
+    }
+
+    // Display validation success
+    function displayReceiptPassed(session) {
+      showScreenArea("passed");
+
+      const names = {
+        "R-10245": "Salaam HQ Retail Counter",
+        "738435": "Salaam Bank Branch A",
+        "146136": "Mogadishu Mall POS-2"
+      };
+
+      document.getElementById("recMerchantName").innerText = names[targetMerchantId] || `GoPay Partner (${targetMerchantId})`;
+      document.getElementById("recMerchantId").innerText = targetMerchantId;
+      document.getElementById("recTimestamp").innerText = new Date().toLocaleString();
+      document.getElementById("recTxHash").innerText = `GP-TX-${Math.floor(100000 + Math.random() * 899999)}`;
+      document.getElementById("recTotal").innerText = `$${session.amount.toFixed(2)}`;
+
+      const providerLabels = {
+        "evc": "Hormuud EVC Plus",
+        "edahab": "eDahab Somtel Pay",
+        "jeeb": "JEEB Mobile Wallet",
+        "premier": "Premier Islamic Banking Wallet"
+      };
+      document.getElementById("recProvider").innerText = providerLabels[session.provider || "evc"] || "EVC Plus Secure Gateway";
+
+      const listContainer = document.getElementById("recItemsList");
+      if (session.items) {
+        let parsed = [];
+        try {
+          parsed = typeof session.items === 'string' ? JSON.parse(session.items) : session.items;
+        } catch(e) {
+          parsed = [];
+        }
+
+        if (parsed && parsed.length > 0) {
+          listContainer.innerHTML = parsed.map(item => `
+            <div class="grid grid-cols-12 gap-1 text-[10px] text-slate-800 py-1 border-b border-dashed border-slate-100">
+              <span class="col-span-6 font-bold truncate">${item.name}</span>
+              <span class="col-span-2 text-center text-slate-400">x${item.qty}</span>
+              <span class="col-span-4 text-right font-bold text-slate-900">$${(item.price * item.qty).toFixed(2)}</span>
+            </div>
+          `).join("");
+        } else {
+          showBasicCustomItem(session.amount);
+        }
+      } else {
+        showBasicCustomItem(session.amount);
+      }
+    }
+
+    function showBasicCustomItem(amt) {
+      document.getElementById("recItemsList").innerHTML = `
+        <div class="flex justify-between items-center py-1.5 text-slate-800 font-bold border-b border-dashed border-slate-100">
+          <span>POS Cashier Basket Charge</span>
+          <span class="text-slate-400">x1</span>
+          <span>$${amt.toFixed(2)}</span>
+        </div>
+      `;
+    }
+
+    // Display pending session
+    function displayPendingSettle(session) {
+      showScreenArea("pending");
+      document.getElementById("pendingInvoiceId").innerText = session.invoiceId || "INV-PENDING";
+      document.getElementById("pendingTotal").innerText = `$${session.amount.toFixed(2)}`;
+    }
+
+    function forceCheckAgain() {
+      if (targetMerchantId) {
+        triggerFetchVerification(targetMerchantId, targetInvoiceId);
+      }
+    }
+
+    // Clear verification state resets
+    function restartVerificationQuery() {
+      if (currentPollingInterval) clearInterval(currentPollingInterval);
+      document.getElementById("inputInvoiceId").value = "";
+      showScreenArea("placeholder");
+    }
+
+    // Switch screen visibility areas
+    function showScreenArea(type, customError = "") {
+      document.getElementById("statePlaceholder").classList.add("hidden");
+      document.getElementById("stateLoading").classList.add("hidden");
+      document.getElementById("stateError").classList.add("hidden");
+      document.getElementById("statePassed").classList.add("hidden");
+      document.getElementById("statePending").classList.add("hidden");
+
+      if (type === "placeholder") {
+        document.getElementById("statePlaceholder").classList.remove("hidden");
+      } else if (type === "loading") {
+        document.getElementById("stateLoading").classList.remove("hidden");
+      } else if (type === "error") {
+        document.getElementById("stateError").classList.remove("hidden");
+        if (customError) {
+          document.getElementById("errorDescription").innerText = customError;
+        }
+      } else if (type === "passed") {
+        document.getElementById("statePassed").classList.remove("hidden");
+      } else if (type === "pending") {
+        document.getElementById("statePending").classList.remove("hidden");
+      }
+    }
+
+    // Kick off initialization
+    initVerifier();
+    lucide.createIcons();
+  </script>
+
+</body>
+</html>

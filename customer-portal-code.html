@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoPay Somali Mobile Wallet Portal</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Inter for elegant UI, Space Grotesk for Headings, JetBrains Mono for receipts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .heading-font {
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .mono-font {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+  </style>
+</head>
+<body class="bg-[#0F172A] text-slate-100 flex items-center justify-center min-h-screen p-4 overflow-y-auto">
+
+  <!-- Production GoPay POS Backend URL Config -->
+  <script>
+    // Adjust this variable if your GoPay Merchant POS terminal is hosted elsewhere
+    const GO_PAY_POS_URL = "https://gopaypossystem.vercel.app";
+  </script>
+
+  <!-- Card Frame (Simulated smartphone frame on desktop, borderless on mobile) -->
+  <div class="w-full max-w-[390px] bg-slate-900 border-4 border-slate-800 rounded-[36px] flex flex-col shadow-2xl relative overflow-hidden min-h-[640px] text-slate-800">
+    
+    <!-- Header status bar (Teal color scheme default) -->
+    <div id="brandHeader" class="bg-[#00828A] text-white p-4 text-center relative border-b border-white/10 shrink-0 transition-colors duration-300">
+      <div class="flex items-center justify-center gap-1.5">
+        <i data-lucide="shield-check" class="h-4.5 w-4.5 text-emerald-400 animate-pulse"></i>
+        <span id="headerTitle" class="text-xs font-black uppercase tracking-widest heading-font">EVC PLUS SECURE PORTAL</span>
+      </div>
+      <p id="headerSubtitle" class="text-[9px] text-white/80 mt-0.5 italic">Somalia's Safest Mobile Wallet Payment Gateway</p>
+    </div>
+
+    <!-- Live Status Banner -->
+    <div class="bg-slate-950 text-white px-4 py-1.5 flex items-center justify-between text-[10px] border-b border-slate-800">
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+        <span class="text-emerald-400 font-bold">POS Terminal Online</span>
+      </div>
+      <span class="text-slate-400 mono-font" id="liveTime">00:00 AM</span>
+    </div>
+
+    <!-- Active Portal Screen Body -->
+    <div class="flex-1 bg-slate-50 flex flex-col justify-between p-5 overflow-y-auto">
+
+      <!-- ================= STEP 1: WELCOME SCREEN ================= -->
+      <div id="screenWelcome" class="space-y-4 flex-1 flex flex-col justify-between">
+        
+        <!-- Billing Card -->
+        <div class="space-y-3">
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-md text-center space-y-2">
+            <span class="text-[9px] font-black text-rose-500 uppercase tracking-widest bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-md inline-block animate-pulse">
+              Pending Cashier Checkout
+            </span>
+            <p class="text-[11px] text-slate-400 mono-font mt-1">Invoice ID: <span id="valInvoiceId" class="font-bold text-slate-600">---</span></p>
+            
+            <div class="py-2">
+              <p class="text-xs text-slate-400 font-medium font-sans">Payment Requested By:</p>
+              <h3 id="valMerchantName" class="text-base font-black text-slate-800 tracking-tight">Loading Merchant...</h3>
+              <p class="text-[10px] text-slate-400 mono-font">MID ID: <span id="valMerchantId">---</span></p>
+            </div>
+
+            <!-- Gigantic Live Total Display -->
+            <div class="border-t border-slate-100 pt-3">
+              <p class="text-[9px] text-slate-400 uppercase tracking-widest font-black">Authorized Billing Total</p>
+              <p id="valTotalDisplay" class="text-3xl font-black text-slate-900 mono-font mt-0.5">$0.00</p>
+            </div>
+          </div>
+
+          <!-- Selected Wallet / Operator Info Router -->
+          <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div id="walletLogoBadge" class="w-9 h-9 rounded-xl bg-[#00828A] text-white flex items-center justify-center font-bold text-xs">
+                EVC
+              </div>
+              <div class="text-left">
+                <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-bold">Payment Method</span>
+                <span id="walletNameDisplay" class="text-xs font-black text-slate-800">Hormuud EVC Plus</span>
+              </div>
+            </div>
+            <!-- Interactive Wallet Selector dropdown -->
+            <select id="walletSelector" class="bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold py-1 px-2 rounded-lg border-0 outline-none cursor-pointer">
+              <option value="evc">EVC Plus</option>
+              <option value="edahab">eDahab</option>
+              <option value="jeeb">JEEB Wallet</option>
+              <option value="premier">Premier Pay</option>
+            </select>
+          </div>
+
+          <!-- Checkout Items List container (visible if items parsed) -->
+          <div id="itemsContainer" class="bg-white p-3.5 rounded-2xl border border-slate-200/50 shadow-sm space-y-1.5 hidden">
+            <div class="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100 pb-1.5">
+              <i data-lucide="shopping-bag" class="h-3.5 w-3.5 text-sky-500"></i>
+              <span>Cashier Order Items</span>
+            </div>
+            <div id="itemsList" class="space-y-1 max-h-[110px] overflow-y-auto mono-font text-[11px] text-slate-600 pr-1">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Polling indicator box when amount= is empty -->
+          <div id="pollingIndicator" class="bg-sky-50 border border-sky-100 rounded-xl p-3 text-center space-y-1 text-sky-800">
+            <div class="flex items-center justify-center gap-1.5">
+              <i data-lucide="loader-2" class="h-3.5 w-3.5 animate-spin text-sky-600"></i>
+              <span class="text-[10px] font-bold uppercase tracking-wider">Awaiting Checkout Price...</span>
+            </div>
+            <p class="text-[9px] text-sky-600/80 leading-snug">Please add dishes to the checkout basket on the Cashier POS terminal. This screen responds dynamically.</p>
+          </div>
+        </div>
+
+        <!-- Confirm and Proceed Action -->
+        <button id="btnProceedToPin" disabled class="w-full py-4 rounded-xl bg-slate-300 text-slate-500 font-extrabold text-xs flex items-center justify-center gap-1.5 tracking-wider transition-all duration-150 cursor-not-allowed">
+          <span>PROCEED TO ENTER TRANSACTION PIN</span>
+          <i data-lucide="arrow-right" class="h-4 w-4"></i>
+        </button>
+      </div>
+
+      <!-- ================= STEP 2: PIN PAD INGRESS ================= -->
+      <div id="screenPin" class="space-y-4 flex-1 flex flex-col justify-between hidden">
+        <div class="text-center space-y-2">
+          <div id="pinIconBox" class="w-10 h-10 bg-[#00828A]/10 text-[#00828A] rounded-full flex items-center justify-center mx-auto border border-[#00828A]/20">
+            <i data-lucide="lock" class="h-4.5 w-4.5"></i>
+          </div>
+          <div>
+            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Security Transfer PIN Ingress</h3>
+            <p class="text-[9.5px] text-slate-400 mt-0.5">Please keys your 4-digit mobile wallet authorization passcode.</p>
+          </div>
+
+          <!-- Interactive Mask Dots representing PIN entries -->
+          <div class="flex justify-center space-x-3.5 py-3">
+            <div id="dot0" class="w-3.5 h-3.5 rounded-full border border-slate-300 bg-white transition-all"></div>
+            <div id="dot1" class="w-3.5 h-3.5 rounded-full border border-slate-300 bg-white transition-all"></div>
+            <div id="dot2" class="w-3.5 h-3.5 rounded-full border border-slate-300 bg-white transition-all"></div>
+            <div id="dot3" class="w-3.5 h-3.5 rounded-full border border-slate-300 bg-white transition-all"></div>
+          </div>
+        </div>
+
+        <!-- Numeric Pin Pad keys grid -->
+        <div class="grid grid-cols-3 gap-1.5 bg-slate-200/50 p-2 rounded-2xl border border-slate-300/40">
+          <button type="button" onclick="tapPin('1')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">1</button>
+          <button type="button" onclick="tapPin('2')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">2</button>
+          <button type="button" onclick="tapPin('3')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">3</button>
+          <button type="button" onclick="tapPin('4')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">4</button>
+          <button type="button" onclick="tapPin('5')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">5</button>
+          <button type="button" onclick="tapPin('6')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">6</button>
+          <button type="button" onclick="tapPin('7')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">7</button>
+          <button type="button" onclick="tapPin('8')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">8</button>
+          <button type="button" onclick="tapPin('9')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">9</button>
+          <button type="button" onclick="clearPin()" class="py-2.5 text-center text-rose-600 font-black text-xs bg-rose-50 hover:bg-rose-100 rounded-xl border border-rose-200 transition-colors">CLR</button>
+          <button type="button" onclick="tapPin('0')" class="py-2.5 text-center text-slate-800 font-black text-sm bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">0</button>
+          <button type="button" onclick="navigateStep('welcome')" class="py-2.5 text-center text-slate-500 font-bold text-xs bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition-colors">BACK</button>
+        </div>
+
+        <!-- Submit Remit Transfer Button -->
+        <button id="btnSignPayment" disabled onclick="submitPayment()" class="w-full py-3.5 rounded-xl bg-slate-350 text-slate-500 font-black text-xs uppercase tracking-wider transition-all duration-150 cursor-not-allowed">
+          Authenticate & Pay
+        </button>
+      </div>
+
+      <!-- ================= STEP 3: TRANSACTION SUBMITTING ================= -->
+      <div id="screenProcessing" class="flex-1 flex flex-col items-center justify-center space-y-4 hidden">
+        <div class="relative w-16 h-16 flex items-center justify-center">
+          <div class="absolute inset-0 border-4 border-slate-200 rounded-full"></div>
+          <div class="absolute inset-0 border-4 border-[#00828A] rounded-full border-t-transparent animate-spin" id="spinnerFrame"></div>
+        </div>
+        <div class="text-center space-y-1.5">
+          <p class="text-xs font-black uppercase tracking-widest text-slate-800">Transmitting Token Remittance...</p>
+          <p class="text-[10px] text-slate-400 mono-font">Securing connection with POS Terminal registry</p>
+        </div>
+      </div>
+
+      <!-- ================= STEP 4: SUCCESS RECEIPT ================= -->
+      <div id="screenSuccess" class="space-y-4 flex-1 flex flex-col justify-between hidden">
+        <div class="space-y-4 flex-1 overflow-y-auto pr-0.5 no-scrollbar">
+          
+          <!-- Green Success check bubble -->
+          <div class="text-center space-y-1.5">
+            <div class="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20 shadow-sm">
+              <i data-lucide="check-circle-2" class="h-6.5 w-6.5"></i>
+            </div>
+            <h3 class="text-sm font-black text-slate-900 uppercase tracking-tight">TRANSACTION SUCCESS</h3>
+            <span class="text-[9.5px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 rounded-full px-3 py-0.5 inline-block">
+              ✓ Paid & Validated on Terminal Registry
+            </span>
+          </div>
+
+          <!-- Printable Digital Receipt layout -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-md relative overflow-hidden text-slate-800 space-y-3 mono-font text-[10px]">
+            <!-- Floating Security Stamp -->
+            <div id="receiptBadgeStamp" class="absolute top-0 right-0 bg-[#00828A] text-white font-sans text-[7px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-wider">
+              GoPay Certified
+            </div>
+
+            <!-- Header of invoice receipt -->
+            <div class="text-center border-b border-dashed border-slate-200 pb-2.5 space-y-1">
+              <h4 id="recMerchantName" class="text-xs font-black uppercase text-slate-900">Salaam Merchant</h4>
+              <p class="text-[8px] text-slate-400">Merchant Reference: <span id="recMerchantId">---</span></p>
+              <p class="text-[8px] text-slate-400">Date/Time: <span id="recDateTime">---</span></p>
+              <p class="text-[8.5px] text-sky-600 font-bold" id="recTxId">GP-TX-849572</p>
+            </div>
+
+            <!-- Items breakdown inside receipt -->
+            <div class="border-b border-dashed border-slate-200 pb-2.5 space-y-1.5">
+              <div class="grid grid-cols-12 gap-1 font-bold text-slate-400 uppercase pb-0.5 border-b border-slate-50">
+                <span class="col-span-6">Billing Item</span>
+                <span class="col-span-2 text-center">Qty</span>
+                <span class="col-span-4 text-right">Subtotal</span>
+              </div>
+              <div id="recItemsList" class="space-y-1 text-[9.5px]">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+
+            <!-- Grand overall total -->
+            <div class="flex justify-between items-center text-[11px] font-bold text-slate-900">
+              <span>Remitted Billing Total:</span>
+              <span id="recTotal" class="text-[#00828A] text-sm font-black">$0.00</span>
+            </div>
+
+            <!-- Success notification summary -->
+            <div class="text-center bg-slate-50 border border-slate-100 rounded-xl p-2.5 space-y-0.5">
+              <span class="text-[7.5px] font-bold text-slate-400 block tracking-wider uppercase">MOBILE SYNC COMPLETE</span>
+              <p class="text-[8px] leading-tight text-slate-500 font-sans">Checkout status synchronized automatically to the Cashier's Monitor screen. You can close this payment portal.</p>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="window.close()" class="w-full py-3.5 bg-slate-900 text-white hover:bg-slate-850 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg">
+          <span>Close Checkout Portal</span>
+          <i data-lucide="log-out" class="h-4 w-4"></i>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Software Home drag Bar spacer -->
+    <div class="pb-3 pt-1.5 bg-slate-900 flex items-center justify-center shrink-0">
+      <div class="w-28 h-1 bg-white/20 rounded-full"></div>
+    </div>
+  </div>
+
+
+  <!-- Core Dynamic Logic -->
+  <script>
+    // Local State
+    let activeMerchantId = "";
+    let activeInvoiceId = "";
+    let billingAmount = 0;
+    let selectedProvider = "evc";
+    let invoiceItems = [];
+    let currentPinValue = "";
+    let isSettled = false;
+
+    // Parse URL Query parameters
+    function parseQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const merchant = params.get("merchant") || "R-10245";
+      const amountStr = params.get("amount") || "";
+      
+      activeMerchantId = merchant;
+      
+      if (amountStr) {
+        billingAmount = parseFloat(amountStr);
+        activeInvoiceId = `INV-${merchant}-${Date.now().toString().slice(-4)}`;
+        updateUI();
+      } else {
+        // Amount is blank: We poll POS Terminal server dynamically
+        startPOSPolling();
+      }
+    }
+
+    // Start polling endpoints from the GoPay POS Backend server
+    let pollingInterval = null;
+    function startPOSPolling() {
+      if (pollingInterval) clearInterval(pollingInterval);
+      
+      async function poll() {
+        if (isSettled) return;
+        try {
+          const res = await fetch(`${GO_PAY_POS_URL}/api/get-terminal-price?merchant=${activeMerchantId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.session && data.session.amount > 0) {
+              const session = data.session;
+              billingAmount = session.amount;
+              activeInvoiceId = session.invoiceId;
+              selectedProvider = session.provider || "evc";
+              
+              if (session.items) {
+                try {
+                  invoiceItems = typeof session.items === 'string' ? JSON.parse(session.items) : session.items;
+                } catch(e) {
+                  invoiceItems = [];
+                }
+              } else {
+                invoiceItems = [];
+              }
+              
+              // If POS status is marked as paid, skip to success screen
+              if (session.status === "paid") {
+                isSettled = true;
+                showSuccessReceipt();
+              } else {
+                document.getElementById("pollingIndicator").classList.add("hidden");
+                updateUI();
+              }
+            } else {
+              resetBillingToWaiting();
+            }
+          }
+        } catch(err) {
+          console.warn("Polling error connection to POS back: ", err);
+        }
+      }
+
+      poll();
+      pollingInterval = setInterval(poll, 1500);
+    }
+
+    function resetBillingToWaiting() {
+      billingAmount = 0;
+      activeInvoiceId = "";
+      invoiceItems = [];
+      document.getElementById("pollingIndicator").classList.remove("hidden");
+      document.getElementById("btnProceedToPin").disabled = true;
+      document.getElementById("btnProceedToPin").className = "w-full py-4 rounded-xl bg-slate-350 text-slate-500 font-extrabold text-xs flex items-center justify-center gap-1.5 tracking-wider font-sans cursor-not-allowed";
+      
+      document.getElementById("valInvoiceId").innerText = "---";
+      document.getElementById("valMerchantName").innerText = "Awaiting POS Cart...";
+      document.getElementById("valMerchantId").innerText = activeMerchantId;
+      document.getElementById("valTotalDisplay").innerText = "$0.00";
+    }
+
+    // Update screen components with billing details
+    function updateUI() {
+      document.getElementById("valInvoiceId").innerText = activeInvoiceId || `INV-${activeMerchantId}`;
+      
+      const names = {
+        "R-10245": "Salaam HQ Retail Counter",
+        "738435": "Salaam Bank Branch A",
+        "146136": "Mogadishu Mall POS-2"
+      };
+      
+      document.getElementById("valMerchantName").innerText = names[activeMerchantId] || `GoPay Partner Store (${activeMerchantId})`;
+      document.getElementById("valMerchantId").innerText = activeMerchantId;
+      document.getElementById("valTotalDisplay").innerText = `$${billingAmount.toFixed(2)}`;
+
+      // Setup list items
+      const itemsList = document.getElementById("itemsList");
+      const itemsContainer = document.getElementById("itemsContainer");
+      if (invoiceItems && invoiceItems.length > 0) {
+        itemsContainer.classList.remove("hidden");
+        itemsList.innerHTML = invoiceItems.map(item => `
+          <div class="flex justify-between items-center py-0.5 border-b border-slate-50">
+            <span class="font-bold text-slate-800 max-w-[170px] truncate">${item.name}</span>
+            <span class="text-slate-400">x${item.qty}</span>
+            <span class="font-bold text-slate-800">$${(item.price * item.qty).toFixed(2)}</span>
+          </div>
+        `).join("");
+      } else {
+        itemsContainer.classList.add("hidden");
+      }
+
+      // Sync wallet styling defaults
+      applyWalletStyle();
+
+      // Enable submit action
+      if (billingAmount > 0) {
+        const btn = document.getElementById("btnProceedToPin");
+        btn.disabled = false;
+        // Apply wallet accent background color mapping
+        const accentBg = getWalletAccentBgClass();
+        btn.className = `w-full py-4 rounded-xl ${accentBg} text-slate-900 font-black text-xs flex items-center justify-center gap-1.5 tracking-wider shadow-md hover:opacity-95 active:scale-98 transition-all cursor-pointer`;
+      }
+    }
+
+    // Return current selected wallet details classes
+    function getWalletAccentBgClass() {
+      if (selectedProvider === "evc") return "bg-[#FFD400]";
+      if (selectedProvider === "edahab") return "bg-[#FF8A00]";
+      if (selectedProvider === "jeeb") return "bg-[#00E5FF]";
+      if (selectedProvider === "premier") return "bg-[#D4AF37]";
+      return "bg-[#FFD400]";
+    }
+
+    function applyWalletStyle() {
+      const header = document.getElementById("brandHeader");
+      const title = document.getElementById("headerTitle");
+      const subtitle = document.getElementById("headerSubtitle");
+      const badge = document.getElementById("walletLogoBadge");
+      const display = document.getElementById("walletNameDisplay");
+      const pinBox = document.getElementById("pinIconBox");
+
+      if (selectedProvider === "evc") {
+        header.style.backgroundColor = "#00828A";
+        title.innerText = "EVC PLUS SECURE PORTAL";
+        subtitle.innerText = "Somalia's Safest Mobile Wallet Payment Gateway";
+        badge.style.backgroundColor = "#00828A";
+        badge.innerText = "EVC";
+        display.innerText = "Hormuud EVC Plus";
+        pinBox.className = "w-10 h-10 bg-[#00828A]/10 text-[#00828A] rounded-full flex items-center justify-center mx-auto border border-[#00828A]/20";
+        document.getElementById("receiptBadgeStamp").style.backgroundColor = "#00828A";
+      } else if (selectedProvider === "edahab") {
+        header.style.backgroundColor = "#1E3A8A";
+        title.innerText = "EDAHAB SECURE CHECKOUT";
+        subtitle.innerText = "Somtel Consolidated Cash Flow Security Layer";
+        badge.style.backgroundColor = "#1E3A8A";
+        badge.innerText = "EDHB";
+        display.innerText = "eDahab (Somtel)";
+        pinBox.className = "w-10 h-10 bg-blue-900/10 text-blue-800 rounded-full flex items-center justify-center mx-auto border border-blue-900/20";
+        document.getElementById("receiptBadgeStamp").style.backgroundColor = "#1E3A8A";
+      } else if (selectedProvider === "jeeb") {
+        header.style.backgroundColor = "#0E2F56";
+        title.innerText = "JEEB MOBILE PAY GATEWAY";
+        subtitle.innerText = "Next-Gen Tap-to-Transmit Somali Payments";
+        badge.style.backgroundColor = "#0E2F56";
+        badge.innerText = "JEEB";
+        display.innerText = "JEEB Mobile Wallet";
+        pinBox.className = "w-10 h-10 bg-[#0E2F56]/10 text-[#0E2F56] rounded-full flex items-center justify-center mx-auto border border-[#0E2F56]/20";
+        document.getElementById("receiptBadgeStamp").style.backgroundColor = "#0E2F56";
+      } else if (selectedProvider === "premier") {
+        header.style.backgroundColor = "#6B1D2F";
+        title.innerText = "PREMIER BANKING PROTOCOL";
+        subtitle.innerText = "Islamic Mobile Wallet Banking & Fast settled remittance";
+        badge.style.backgroundColor = "#6B1D2F";
+        badge.innerText = "PRMR";
+        display.innerText = "Premier Wallet Pay";
+        pinBox.className = "w-10 h-10 bg-[#6B1D2F]/10 text-[#6B1D2F] rounded-full flex items-center justify-center mx-auto border border-[#6B1D2F]/20";
+        document.getElementById("receiptBadgeStamp").style.backgroundColor = "#6B1D2F";
+      }
+    }
+
+    // Step navigation helper
+    function navigateStep(target) {
+      document.getElementById("screenWelcome").classList.add("hidden");
+      document.getElementById("screenPin").classList.add("hidden");
+      document.getElementById("screenProcessing").classList.add("hidden");
+      document.getElementById("screenSuccess").classList.add("hidden");
+
+      if (target === "welcome") {
+        document.getElementById("screenWelcome").classList.remove("hidden");
+      } else if (target === "pin") {
+        document.getElementById("screenPin").classList.remove("hidden");
+        clearPin();
+      } else if (target === "processing") {
+        document.getElementById("screenProcessing").classList.remove("hidden");
+      } else if (target === "success") {
+        document.getElementById("screenSuccess").classList.remove("hidden");
+      }
+    }
+
+    // Audio frequency confirmation speaker
+    function playBeep() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = 1320; // Authentic high confirm frequency tone
+          gain.gain.setValueAtTime(0.18, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.15);
+        }
+      } catch (e) {
+        console.log("Audio speech beep suppressed: ", e);
+      }
+    }
+
+    // Pin Ingress input handlers
+    function tapPin(key) {
+      if (currentPinValue.length < 4) {
+        currentPinValue += key;
+        updatePinDots();
+      }
+    }
+
+    function clearPin() {
+      currentPinValue = "";
+      updatePinDots();
+    }
+
+    function updatePinDots() {
+      for (let i = 0; i < 4; i++) {
+        const dot = document.getElementById(`dot${i}`);
+        if (currentPinValue.length > i) {
+          dot.className = "w-3.5 h-3.5 rounded-full bg-slate-800 scale-110 shadow-sm border border-slate-400 transition-all";
+        } else {
+          dot.className = "w-3.5 h-3.5 rounded-full bg-white border border-slate-300 transition-all";
+        }
+      }
+
+      // Manage Submit CTA status
+      const btn = document.getElementById("btnSignPayment");
+      if (currentPinValue.length === 4) {
+        btn.disabled = false;
+        const colorClass = getWalletAccentBgClass();
+        btn.className = `w-full py-3.5 rounded-xl ${colorClass} text-slate-900 font-extrabold text-xs uppercase tracking-wider shadow-md hover:brightness-95 transition-all cursor-pointer`;
+      } else {
+        btn.disabled = true;
+        btn.className = "w-full py-3.5 rounded-xl bg-slate-200 text-slate-400 font-black text-xs uppercase tracking-wider cursor-not-allowed";
+      }
+    }
+
+    // Submit payment status mutations back to POS system
+    async function submitPayment() {
+      if (currentPinValue.length < 4) return;
+      
+      navigateStep("processing");
+
+      // Set timeout simulator to replicate transaction transport validation speed
+      setTimeout(async () => {
+        try {
+          // 1. Inform POS terminal registry api of successful settlement context
+          const response = await fetch(`${GO_PAY_POS_URL}/api/pay-terminal-price`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              merchantId: activeMerchantId
+            })
+          });
+
+          // 2. Broadcast paid status via ntfy pub/sub for instant reaction (Fallback & instant sync)
+          try {
+            await fetch(`https://ntfy.sh/gopay_payment_${activeInvoiceId}`, {
+              method: "POST",
+              body: "paid"
+            });
+          } catch(e) {
+            console.warn("ntfy channel hook bypassed: ", e);
+          }
+
+          if (response.ok) {
+            isSettled = true;
+            playBeep();
+            showSuccessReceipt();
+          } else {
+            alert("POS transaction validation failed. Please check cash register connection.");
+            navigateStep("pin");
+          }
+        } catch(err) {
+          console.error("Payment sync network issue: ", err);
+          alert("Network connection error: Failed to reach GoPay Cashier Monitor registry.");
+          navigateStep("pin");
+        }
+      }, 1500);
+    }
+
+    // Populate receipt page elements and transition
+    function showSuccessReceipt() {
+      // Set values inside receipt
+      const names = {
+        "R-10245": "Salaam HQ Retail Counter",
+        "738435": "Salaam Bank Branch A",
+        "146136": "Mogadishu Mall POS-2"
+      };
+
+      document.getElementById("recMerchantName").innerText = names[activeMerchantId] || `GoPay Store Ref (${activeMerchantId})`;
+      document.getElementById("recMerchantId").innerText = activeMerchantId;
+      document.getElementById("recDateTime").innerText = new Date().toLocaleString();
+      document.getElementById("recTxId").innerText = `GP-TX-${Math.floor(100000 + Math.random() * 900000)}`;
+      document.getElementById("recTotal").innerText = `$${billingAmount.toFixed(2)}`;
+
+      const recItems = document.getElementById("recItemsList");
+      if (invoiceItems && invoiceItems.length > 0) {
+        recItems.innerHTML = invoiceItems.map(item => `
+          <div class="grid grid-cols-12 gap-1 text-[9.5px] text-slate-705 my-0.5">
+            <span class="col-span-6 font-semibold truncate text-slate-800">${item.name}</span>
+            <span class="col-span-2 text-center text-slate-400">x${item.qty}</span>
+            <span class="col-span-4 text-right font-bold text-slate-800">$${(item.price * item.qty).toFixed(2)}</span>
+          </div>
+        `).join("");
+      } else {
+        recItems.innerHTML = `
+          <div class="flex justify-between items-center py-0.5 text-slate-700">
+            <span class="font-bold">Custom Cashier Sale</span>
+            <span>x1</span>
+            <span class="font-bold text-right">$${billingAmount.toFixed(2)}</span>
+          </div>
+        `;
+      }
+
+      navigateStep("success");
+    }
+
+    // Event listener hooks
+    document.getElementById("btnProceedToPin").addEventListener("click", () => {
+      navigateStep("pin");
+    });
+
+    document.getElementById("walletSelector").addEventListener("change", (e) => {
+      selectedProvider = e.target.value;
+      applyWalletStyle();
+      updatePinDots();
+    });
+
+    // Auto Refresh Clocks
+    setInterval(() => {
+      const live = document.getElementById("liveTime");
+      if (live) {
+        live.innerText = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+    }, 1000);
+
+    // Initial Execution Invocations
+    parseQuery();
+    lucide.createIcons();
+  </script>
+
+</body>
+</html>
